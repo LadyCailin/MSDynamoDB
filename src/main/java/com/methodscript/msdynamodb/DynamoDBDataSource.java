@@ -16,6 +16,7 @@ import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.BillingMode;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.KeyType;
@@ -30,6 +31,7 @@ import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.PureUtilities.Web.WebUtility;
 import com.laytonsmith.annotations.datasource;
 import com.laytonsmith.core.MSVersion;
+import com.laytonsmith.core.tool;
 import com.laytonsmith.persistence.AbstractDataSource;
 import com.laytonsmith.persistence.DataSource;
 import com.laytonsmith.persistence.DataSourceException;
@@ -127,19 +129,60 @@ public class DynamoDBDataSource extends AbstractDataSource {
 			client.describeTable(tableName).getTable();
 		} catch (ResourceNotFoundException e) {
 			// Need to create a table with this name
-			if (host == null) {
-				throw new DataSourceException("The table \"" + tableName + "\" was not found in "
-						+ (host == null ? "AWS:" + region.getName() : host)
-						+ ". You must manually create this table yourself. Please see the documentation for details"
-						+ " on how to set this up.");
-			} else {
-				createTable(tableName, client);
-			}
+			throw new DataSourceException("The table \"" + tableName + "\" was not found in "
+					+ (host == null ? "AWS:" + region.getName() : host)
+					+ ". You must manually create this table yourself. Please see the documentation for details"
+					+ " on how to set this up, or use the " + TableCreator.class.getAnnotation(tool.class).value()
+					+ " command line tool.");
 		}
 		table = new DynamoDB(client).getTable(tableName);
 	}
 
-	private void validateTableName(String tableName) throws DataSourceException {
+	public static AmazonDynamoDB buildClient(String protocol, String host, int port, Regions region,
+			String accessKeyId, String accessKeySecret) {
+		AmazonDynamoDBClientBuilder clientBuilder = AmazonDynamoDBClientBuilder.standard();
+		if (host != null) {
+			clientBuilder.withEndpointConfiguration(
+					new AwsClientBuilder.EndpointConfiguration(protocol + "://" + host + ":" + port,
+							region.name().toLowerCase()));
+		} else {
+			clientBuilder.withRegion(region);
+		}
+		if (accessKeyId != null) {
+			clientBuilder.setCredentials(new AWSCredentialsProvider() {
+				@Override
+				public AWSCredentials getCredentials() {
+					return new AWSCredentials() {
+						@Override
+						public String getAWSAccessKeyId() {
+							return accessKeyId;
+						}
+
+						@Override
+						public String getAWSSecretKey() {
+							return accessKeySecret;
+						}
+					};
+				}
+
+				@Override
+				public void refresh() {
+				}
+			});
+		}
+		return clientBuilder.build();
+
+	}
+
+	/**
+	 * Validates that a table name conforms with the DynamoDB requirements. The requirements can be found at the <a
+	 * href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.NamingRulesDataTypes.html">
+	 * Naming Rules and Data Types</a> page.
+	 *
+	 * @param tableName The table name to validate
+	 * @throws DataSourceException If the table name does not validate.
+	 */
+	public static void validateTableName(String tableName) throws DataSourceException {
 		List<String> errors = new ArrayList<>();
 		if (tableName.length() < 3 || tableName.length() > 255) {
 			errors.add("Table name length must be between 3 and 255 characters.");
@@ -153,8 +196,44 @@ public class DynamoDBDataSource extends AbstractDataSource {
 		}
 	}
 
-	private static void createTable(String tableName, AmazonDynamoDB client) {
-		// THIS SHOULD ONLY BE USED LOCALLY
+	/**
+	 * Creates a table in the DynamoDB with the specified parameters.
+	 *
+	 * @param tableName The name of the table. This will be validated first.
+	 * @param client The pre-built AmazonDynamoDB client. See {@link #buildClient}.
+	 * @param readCapacityUnits The maximum number of strongly consistent reads consumed per second before DynamoDB
+	 * returns a <code>ThrottlingException</code>. For more information, see <a href=
+	 *        "http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithTables.html#ProvisionedThroughput"
+	 * >Specifying Read and Write Requirements</a> in the <i>Amazon DynamoDB Developer Guide</i>.
+	 * <p>
+	 * If read/write capacity mode is <code>PAY_PER_REQUEST</code> the value is set to 0.
+	 * @param writeCapacityUnits The maximum number of writes consumed per second before DynamoDB returns a
+	 * <code>ThrottlingException</code>. For more information, see <a href=
+	 *        "http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithTables.html#ProvisionedThroughput"
+	 * >Specifying Read and Write Requirements</a> in the <i>Amazon DynamoDB Developer Guide</i>.</p>
+	 * <p>
+	 * If read/write capacity mode is <code>PAY_PER_REQUEST</code> the value is set to 0.
+	 * @param billingMode Controls how you are charged for read and write throughput and how you manage capacity. This
+	 * setting can be changed later.</p>
+	 * <ul>
+	 * <li>
+	 * <p>
+	 * <code>PROVISIONED</code> - Sets the billing mode to <code>PROVISIONED</code>. We recommend using
+	 * <code>PROVISIONED</code> for predictable workloads.
+	 * </p>
+	 * </li>
+	 * <li>
+	 * <p>
+	 * <code>PAY_PER_REQUEST</code> - Sets the billing mode to <code>PAY_PER_REQUEST</code>. We recommend using
+	 * <code>PAY_PER_REQUEST</code> for unpredictable workloads.
+	 * </p>
+	 * </li>
+	 * </ul>
+	 * @throws com.laytonsmith.persistence.DataSourceException If the table name is not valid.
+	 */
+	public static void createTable(String tableName, AmazonDynamoDB client, long readCapacityUnits,
+			long writeCapacityUnits, BillingMode billingMode) throws DataSourceException {
+		validateTableName(tableName);
 		DynamoDB dynamoDB = new DynamoDB(client);
 
 		List<AttributeDefinition> attributeDefinitions = new ArrayList<>();
@@ -168,9 +247,10 @@ public class DynamoDBDataSource extends AbstractDataSource {
 				.withTableName(tableName)
 				.withKeySchema(keySchema)
 				.withAttributeDefinitions(attributeDefinitions)
+				.withBillingMode(billingMode)
 				.withProvisionedThroughput(new ProvisionedThroughput()
-						.withReadCapacityUnits(1000L)
-						.withWriteCapacityUnits(1000L));
+						.withReadCapacityUnits(readCapacityUnits)
+						.withWriteCapacityUnits(writeCapacityUnits));
 
 		Table table = dynamoDB.createTable(request);
 		try {
