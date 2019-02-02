@@ -29,7 +29,7 @@ Valid parameters are:
 | --------------- |:---------------------------------------------------------:| ----------:|
 | protocol        | The protocol to use when connecting to non-AWS endpoints  | http       |
 | region          | The AWS region to connect to. For non-AWS connections, this is ignored, but is required for AWS connections. May be one of: GovCloud, US_GOV_EAST_1, US_EAST_1, US_EAST_2, US_WEST_1, US_WEST_2, EU_WEST_1, EU_WEST_2, EU_WEST_3, EU_CENTRAL_1, EU_NORTH_1, AP_SOUTH_1, AP_SOUTHEAST_1, AP_SOUTHEAST_2, AP_NORTHEAST_1, AP_NORTHEAST_2, SA_EAST_1, CN_NORTH_1, CN_NORTHWEST_1, or CA_CENTRAL_1 | |
-| tableName       | The name of the table to be accessed.                     | <Required> |
+| tableName       | The name of the table to be accessed.                     | &lt;Required&gt; |
 | accessKeyId     | The access key id to use. Not required, but if not provided, credentials must be set up in the system itself. | |
 | accessKeySecret | The access key secret to use. Only required if accessKeyId is provided | |
 
