@@ -14,6 +14,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.BillingMode;
@@ -62,6 +63,11 @@ public class DynamoDBDataSource extends AbstractDataSource {
 	private String accessKeyId = null;
 	private String accessKeySecret = null;
 	private String tableName;
+	/**
+	 * By default, reads are eventually consistent, but setting this flag will enforce a
+	 * consistent read mode. This mode is more expensive and slower.
+	 */
+	private boolean consistentRead;
 	private AmazonDynamoDB client;
 	private Table table;
 
@@ -93,6 +99,9 @@ public class DynamoDBDataSource extends AbstractDataSource {
 			throw new DataSourceException("tableName is a required parameter in the DynamoDB configuration.");
 		}
 		tableName = queryString.get("tableName");
+		if(queryString.containsKey("consistentRead")) {
+			consistentRead = queryString.get("consistentRead").equals("true");
+		}
 		validateTableName(tableName);
 		AmazonDynamoDBClientBuilder clientBuilder = AmazonDynamoDBClientBuilder.standard();
 		if (host != null) {
@@ -283,7 +292,11 @@ public class DynamoDBDataSource extends AbstractDataSource {
 
 	@Override
 	protected String get0(String[] key) throws DataSourceException {
-		Item item = table.getItem(PRIMARY_KEY_NAME, StringUtils.Join(key, "."));
+		GetItemSpec spec = new GetItemSpec();
+		spec.withConsistentRead(consistentRead)
+				.withPrimaryKey(PRIMARY_KEY_NAME, StringUtils.Join(key, "."));
+
+		Item item = table.getItem(spec);
 		if (item == null) {
 			return null;
 		}

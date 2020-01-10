@@ -32,6 +32,8 @@ Valid parameters are:
 | tableName       | The name of the table to be accessed.                     | &lt;Required&gt; |
 | accessKeyId     | The access key id to use. Not required, but if not provided, credentials must be set up in the system itself. | |
 | accessKeySecret | The access key secret to use. Only required if accessKeyId is provided | |
+| consistentRead  | If "true", reads will be put in the [strongly consistent](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html) read mode. | false |
+
 
 
 It is not recommended to use the accessKeyId or accessKeySecret parameters,
